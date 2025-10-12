@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="/purchase-credits" class="active">Purchase VCreds</a></li>
+                <li><a href="/login-company">Company Login</a></li>
+            </ul>lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Purchase VCreds - Skill Vault</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/src/styles/purchase-credits.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h1><i class="fas fa-vault"></i> Skill Vault</h1>
+            </div>
+            <ul class="nav-links">
+                <li><a href="/">Home</a></li>
+                <li><a href="#" class="active">Purchase VCreds</a></li>
+                <li><a href="/login-company">Company Login</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Purchase Credits Container -->
+    <div class="purchase-container">
+        <div class="purchase-content">
+            <!-- Header Section -->
+            <div class="purchase-header">
+                <div class="vcreds-logo">
+                    <i class="fas fa-coins"></i>
+                </div>
+                <h1>Purchase VCreds</h1>
+                <p>Buy credits to pay freelancers and manage your projects seamlessly</p>
+            </div>
+
+            <!-- Credit Packages -->
+            <div class="packages-section">
+                <h2>Choose Your Package</h2>
+                <div class="packages-grid">
+                    <div class="package-card" data-amount="1000" data-credits="100">
+                        <div class="package-badge">Starter</div>
+                        <div class="package-icon">
+                            <i class="fas fa-star"></i>
+                        </div>
+                        <h3>100 VCreds</h3>
+                        <div class="package-price">₹1,000</div>
+                        <div class="package-rate">₹10 per VCred</div>
+                        <ul class="package-features">
+                            <li><i class="fas fa-check"></i> Perfect for small projects</li>
+                            <li><i class="fas fa-check"></i> 30-day validity</li>
+                            <li><i class="fas fa-check"></i> Basic support</li>
+                        </ul>
+                        <button class="select-package-btn">Select Package</button>
+                    </div>
+
+                    <div class="package-card popular" data-amount="4500" data-credits="500">
+                        <div class="package-badge popular-badge">Most Popular</div>
+                        <div class="package-icon">
+                            <i class="fas fa-crown"></i>
+                        </div>
+                        <h3>500 VCreds</h3>
+                        <div class="package-price">₹4,500</div>
+                        <div class="package-rate">₹9 per VCred</div>
+                        <div class="savings">Save ₹500!</div>
+                        <ul class="package-features">
+                            <li><i class="fas fa-check"></i> Great for medium projects</li>
+                            <li><i class="fas fa-check"></i> 60-day validity</li>
+                            <li><i class="fas fa-check"></i> Priority support</li>
+                            <li><i class="fas fa-check"></i> 10% bonus credits</li>
+                        </ul>
+                        <button class="select-package-btn">Select Package</button>
+                    </div>
+
+                    <div class="package-card" data-amount="8000" data-credits="1000">
+                        <div class="package-badge">Enterprise</div>
+                        <div class="package-icon">
+                            <i class="fas fa-gem"></i>
+                        </div>
+                        <h3>1000 VCreds</h3>
+                        <div class="package-price">₹8,000</div>
+                        <div class="package-rate">₹8 per VCred</div>
+                        <div class="savings">Save ₹2,000!</div>
+                        <ul class="package-features">
+                            <li><i class="fas fa-check"></i> Perfect for large projects</li>
+                            <li><i class="fas fa-check"></i> 90-day validity</li>
+                            <li><i class="fas fa-check"></i> 24/7 dedicated support</li>
+                            <li><i class="fas fa-check"></i> 25% bonus credits</li>
+                        </ul>
+                        <button class="select-package-btn">Select Package</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Amount Section -->
+            <div class="custom-section">
+                <h2>Custom Amount</h2>
+                <div class="custom-purchase">
+                    <div class="custom-input-group">
+                        <label for="customAmount">Enter Amount (₹)</label>
+                        <input type="number" id="customAmount" placeholder="Enter amount" min="100" step="10">
+                        <div class="credits-display">
+                            <span id="creditsAmount">0</span> VCreds
+                        </div>
+                    </div>
+                    <button id="customPurchaseBtn" class="custom-purchase-btn" disabled>
+                        <i class="fas fa-shopping-cart"></i>
+                        Purchase Custom Amount
+                    </button>
+                </div>
+            </div>
+
+            <!-- Payment Summary -->
+            <div class="payment-summary" id="paymentSummary" style="display: none;">
+                <h3>Payment Summary</h3>
+                <div class="summary-details">
+                    <div class="summary-row">
+                        <span>VCreds:</span>
+                        <span id="summaryCredits">0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Amount:</span>
+                        <span id="summaryAmount">₹0</span>
+                    </div>
+                    <div class="summary-row">
+                        <span>Processing Fee:</span>
+                        <span id="summaryFee">₹0</span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total:</span>
+                        <span id="summaryTotal">₹0</span>
+                    </div>
+                </div>
+
+                <div style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #2196F3;">
+                    <h4 style="color: #1976D2; margin: 0 0 8px 0;">
+                        <i class="fas fa-info-circle"></i> Test Card Rules
+                    </h4>
+                    <p style="margin: 0; color: #424242; font-size: 14px;">
+                        <strong>✅ SUCCESS:</strong> Any card number (except 0000 0000 0000 0000)<br>
+                        <strong>❌ FAILURE:</strong> 0000 0000 0000 0000<br>
+                        <em>CVV: Any 3 digits | Expiry: Any future date</em>
+                    </p>
+                </div>
+
+                <button id="proceedPayment" class="proceed-btn">
+                    <i class="fas fa-credit-card"></i>
+                    Make Payment
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="success-animation">
+                <svg class="success-checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+                    <circle class="success-checkmark__circle" cx="26" cy="26" r="25" fill="none" />
+                    <path class="success-checkmark__check" fill="none" d="m14.1 27.2l7.1 7.2 16.7-16.8" />
+                </svg>
+            </div>
+            <h2>Payment Successful!</h2>
+            <p>Your VCreds have been added to your account</p>
+            <div class="success-details">
+                <div class="detail-item">
+                    <i class="fas fa-coins"></i>
+                    <span>Credits Purchased: <strong id="successCredits">0</strong></span>
+                </div>
+                <div class="detail-item">
+                    <i class="fas fa-receipt"></i>
+                    <span>Transaction ID: <strong id="successTxnId">-</strong></span>
+                </div>
+            </div>
+            <button id="closeModal" class="close-modal-btn">Continue</button>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p>Processing your payment...</p>
+        </div>
+    </div>
+
+    <!-- Razorpay Script -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script src="/src/scripts/purchase-credits.js"></script>
+</body>
+
+</html>
