@@ -1,0 +1,37 @@
+{
+  "name": "skillvault-vcreds",
+  "version": "1.0.0",
+  "description": "A complete credit-based payment system for freelance platforms with Razorpay integration",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "dev": "nodemon server/server.js",
+    "setup-db": "node database/setup-database.js",
+    "test-db": "node dev-tools/test-db-connection.js",
+    "clear-db": "node dev-tools/clear-database.js",
+    "debug": "node dev-tools/debug-server.js"
+  },
+  "keywords": [
+    "freelance",
+    "payment",
+    "razorpay",
+    "credits",
+    "nodejs",
+    "postgresql"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.12.2",
+    "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.2",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.16.3",
+    "razorpay": "^2.9.6"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

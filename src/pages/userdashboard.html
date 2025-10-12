@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skill Vault - User Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="/src/styles/dashboard.css" rel="stylesheet">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <h1><i class="fas fa-vault"></i> Skill Vault</h1>
+            </div>
+            <div class="nav-user">
+                <span id="welcome-message">Welcome back!</span>
+                <div class="user-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <button class="logout-btn" onclick="logout()">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="dashboard-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="profile-card">
+                <div class="profile-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div class="profile-name" id="profile-name">Loading...</div>
+                <div class="profile-title" id="profile-title">Freelancer</div>
+
+            </div>
+
+            <ul class="nav-menu">
+                <li><a href="#" onclick="showSection('dashboard')" class="active">
+                        <i class="fas fa-tachometer-alt"></i> Dashboard
+                    </a></li>
+                <li><a href="#" onclick="showSection('jobs')">
+                        <i class="fas fa-briefcase"></i> Browse Jobs
+                    </a></li>
+                <li><a href="#" onclick="showSection('applications')">
+                        <i class="fas fa-file-alt"></i> My Applications
+                    </a></li>
+                <li><a href="#" onclick="showSection('proposals')">
+                        <i class="fas fa-paper-plane"></i> Sent Proposals
+                    </a></li>
+                <li><a href="#" onclick="showSection('projects')">
+                        <i class="fas fa-tasks"></i> Active Projects
+                    </a></li>
+                <li><a href="#" onclick="showSection('past-projects')">
+                        <i class="fas fa-history"></i> Past Projects
+                    </a></li>
+                <li><a href="#" onclick="showSection('credits')">
+                        <i class="fas fa-dollar-sign"></i> Earnings
+                    </a></li>
+                <li><a href="#" onclick="showSection('profile')">
+                        <i class="fas fa-user-edit"></i> Profile
+                    </a></li>
+                <li><a href="#" onclick="showSection('settings')">
+                        <i class="fas fa-cog"></i> Settings
+                    </a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Overview -->
+            <section id="dashboard" class="content-section active">
+
+
+                <div class="quick-actions">
+                    <a href="#" onclick="showSection('jobs')" class="action-card">
+                        <div class="action-icon"><i class="fas fa-search"></i></div>
+                        <h3>Find Jobs</h3>
+                        <p>Discover new opportunities</p>
+                    </a>
+                    <a href="#" onclick="showSection('profile')" class="action-card">
+                        <div class="action-icon"><i class="fas fa-user-edit"></i></div>
+                        <h3>Update Profile</h3>
+                        <p>Keep your profile current</p>
+                    </a>
+                    <a href="#" onclick="showSection('proposals')" class="action-card">
+                        <div class="action-icon"><i class="fas fa-paper-plane"></i></div>
+                        <h3>Send Proposals</h3>
+                        <p>Apply to jobs that match</p>
+                    </a>
+                    <a href="#" onclick="openCommunicateModal()" class="action-card">
+                        <div class="action-icon"><i class="fas fa-comments"></i></div>
+                        <h3>Communicate</h3>
+                        <p>Chat with clients and team</p>
+                    </a>
+                    <a href="#" onclick="openVideoCallHistory()" class="action-card">
+                        <div class="action-icon"><i class="fas fa-video"></i></div>
+                        <h3>Video Call History</h3>
+                        <p>View past meetings and calls</p>
+                    </a>
+                </div>
+
+                <div class="content-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Recent Job Matches</h2>
+                        <a href="#" onclick="showSection('jobs')" style="color: #667eea; text-decoration: none;">View
+                            All</a>
+                    </div>
+
+                    <div class="job-grid" id="recent-jobs-container">
+                        <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                            <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                            <p>Loading recent job matches...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Browse Jobs Section -->
+            <section id="jobs" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Browse Jobs</h2>
+                    <div class="search-controls">
+                        <select class="filter-select">
+                            <option>All Categories</option>
+                            <option>Web Development</option>
+                            <option>Mobile Development</option>
+                            <option>Design</option>
+                            <option>Writing</option>
+                        </select>
+                        <input type="text" placeholder="Search jobs..." class="search-input">
+                    </div>
+                </div>
+
+                <div class="job-grid" id="jobs-container">
+                    <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Loading available jobs...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- My Applications Section -->
+            <section id="applications" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">My Applications</h2>
+                </div>
+
+                <div class="job-grid" id="applications-container">
+                    <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Loading your applications...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sent Proposals Section -->
+            <section id="proposals" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Sent Proposals</h2>
+                </div>
+                <div class="job-grid" id="proposals-container">
+                    <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Loading your proposals...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Active Projects -->
+            <section id="projects" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Active Projects</h2>
+                </div>
+                <div class="job-grid" id="active-projects-container">
+                    <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Loading your active projects...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Past Projects Section -->
+            <section id="past-projects" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Past Projects Portfolio</h2>
+                    <div class="search-controls">
+                        <select class="filter-select">
+                            <option>All Projects</option>
+                            <option>Web Development</option>
+                            <option>Mobile Apps</option>
+                            <option>UI/UX Design</option>
+                            <option>E-commerce</option>
+                        </select>
+                        <input type="text" placeholder="Search projects..." class="search-input">
+                    </div>
+                </div>
+
+                <div id="past-projects-container">
+                    <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                        <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Loading your portfolio...</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- VCredits Section -->
+            <section id="credits" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">VCredits Management</h2>
+                </div>
+
+                <!-- Credits Overview -->
+                <div class="credits-overview"
+                    style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="overview-card balance-card"
+                        style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 2rem; border-radius: 15px; position: relative; overflow: hidden;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="card-icon" style="font-size: 2.5rem; opacity: 0.8;">
+                                <i class="fas fa-coins"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3 style="margin-bottom: 0.5rem; font-size: 1rem; opacity: 0.9;">Available VCreds</h3>
+                                <div class="balance-amount" id="creditsBalance"
+                                    style="font-size: 2rem; font-weight: bold; margin-bottom: 0.3rem;">0</div>
+                                <p style="font-size: 0.9rem; opacity: 0.8; margin: 0;">Ready to withdraw</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="overview-card earnings-card"
+                        style="background: linear-gradient(135deg, #28a745, #20c997); color: white; padding: 2rem; border-radius: 15px;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="card-icon" style="font-size: 2.5rem; opacity: 0.8;">
+                                <i class="fas fa-chart-line"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3 style="margin-bottom: 0.5rem; font-size: 1rem; opacity: 0.9;">Total Earnings</h3>
+                                <div class="earnings-amount" id="totalEarnings"
+                                    style="font-size: 2rem; font-weight: bold; margin-bottom: 0.3rem;">₹0</div>
+                                <p style="font-size: 0.9rem; opacity: 0.8; margin: 0;">Lifetime earnings</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="overview-card pending-card"
+                        style="background: linear-gradient(135deg, #ffc107, #fd7e14); color: white; padding: 2rem; border-radius: 15px;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="card-icon" style="font-size: 2.5rem; opacity: 0.8;">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                            <div class="card-content">
+                                <h3 style="margin-bottom: 0.5rem; font-size: 1rem; opacity: 0.9;">Pending Withdrawals
+                                </h3>
+                                <div class="pending-amount" id="pendingWithdrawals"
+                                    style="font-size: 2rem; font-weight: bold; margin-bottom: 0.3rem;">₹0</div>
+                                <p style="font-size: 0.9rem; opacity: 0.8; margin: 0;">Being processed</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Main Content -->
+                <div style="display: grid; gap: 2rem;">
+                    <!-- Withdrawal Section -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.8); padding: 2rem; border-radius: 15px; border: 2px solid rgba(102, 126, 234, 0.1);">
+                        <div class="section-header"
+                            style="border-bottom: none; padding-bottom: 0; margin-bottom: 1.5rem;">
+                            <h3 style="color: #333; display: flex; align-items: center; gap: 0.5rem; margin: 0;"><i
+                                    class="fas fa-money-bill-wave"></i> Withdraw Credits</h3>
+                            <p style="color: #666; margin: 0.5rem 0 0 0;">Convert your VCreds to cash (1 VCred = ₹9)</p>
+                        </div>
+
+                        <div class="withdrawal-form" style="display: grid; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label for="withdrawCredits"
+                                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">VCreds
+                                    to Withdraw</label>
+                                <div class="input-group" style="position: relative;">
+                                    <input type="number" id="withdrawCredits" class="form-input"
+                                        placeholder="Enter VCreds" min="10" step="1" style="padding-right: 80px;">
+                                    <span class="input-suffix"
+                                        style="position: absolute; right: 15px; top: 50%; transform: translateY(-50%); color: #666; font-weight: 500;">VCreds</span>
+                                </div>
+                                <div class="conversion-info"
+                                    style="margin-top: 0.5rem; color: #28a745; font-weight: 500;">
+                                    <span id="conversionAmount">₹0</span> after 2% processing fee
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="withdrawMethod"
+                                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">Withdrawal
+                                    Method</label>
+                                <select id="withdrawMethod" class="form-select">
+                                    <option value="">Select Method</option>
+                                    <option value="bank">Bank Transfer</option>
+                                    <option value="upi">UPI</option>
+                                    <option value="paypal">PayPal</option>
+                                    <option value="paytm">Paytm</option>
+                                </select>
+                            </div>
+
+                            <div id="accountDetails" class="account-details" style="display: none;">
+                                <!-- Dynamic account fields will be inserted here -->
+                            </div>
+
+                            <button id="withdrawBtn" class="apply-btn" disabled
+                                style="background: linear-gradient(135deg, #28a745, #20c997); width: fit-content;">
+                                <i class="fas fa-paper-plane"></i>
+                                Request Withdrawal
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Transaction History -->
+                    <div
+                        style="background: rgba(255, 255, 255, 0.8); padding: 2rem; border-radius: 15px; border: 2px solid rgba(102, 126, 234, 0.1);">
+                        <div class="section-header"
+                            style="border-bottom: none; padding-bottom: 0; margin-bottom: 1.5rem;">
+                            <h3 style="color: #333; display: flex; align-items: center; gap: 0.5rem; margin: 0;"><i
+                                    class="fas fa-history"></i> Transaction History</h3>
+                            <div class="filter-controls">
+                                <select id="transactionFilter" class="form-select" style="width: auto;">
+                                    <option value="all">All Transactions</option>
+                                    <option value="received">Credits Received</option>
+                                    <option value="withdrawn">Withdrawals</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="transactions-list" id="transactionsList">
+                            <div class="loading-message" style="text-align: center; padding: 2rem; color: #666;">
+                                <i class="fas fa-spinner fa-spin" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                                <p>Loading transactions...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Success Modal -->
+                <div id="successModal" class="modal"
+                    style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center;">
+                    <div class="modal-content"
+                        style="background: white; padding: 2rem; border-radius: 20px; text-align: center; max-width: 400px; margin: 2rem;">
+                        <div class="success-animation" style="margin-bottom: 1rem;">
+                            <div
+                                style="width: 80px; height: 80px; border-radius: 50%; background: #28a745; margin: 0 auto 1rem; display: flex; align-items: center; justify-content: center; color: white; font-size: 2rem;">
+                                <i class="fas fa-check"></i>
+                            </div>
+                        </div>
+                        <h2 style="color: #333; margin-bottom: 1rem;">Withdrawal Requested!</h2>
+                        <p style="color: #666; margin-bottom: 1.5rem;">Your withdrawal request has been submitted
+                            successfully</p>
+                        <div class="success-details"
+                            style="background: #f8f9fa; padding: 1rem; border-radius: 10px; margin-bottom: 1.5rem;">
+                            <div class="detail-item"
+                                style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <i class="fas fa-coins" style="color: #667eea;"></i>
+                                <span>VCreds: <strong id="successCredits">0</strong></span>
+                            </div>
+                            <div class="detail-item"
+                                style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                <i class="fas fa-money-bill" style="color: #28a745;"></i>
+                                <span>Amount: <strong id="successAmount">₹0</strong></span>
+                            </div>
+                            <div class="detail-item" style="display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="fas fa-clock" style="color: #ffc107;"></i>
+                                <span>Processing Time: <strong>1-3 business days</strong></span>
+                            </div>
+                        </div>
+                        <button id="closeModal" class="apply-btn">Continue</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Profile Section -->
+            <section id="profile" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Profile Settings</h2>
+                </div>
+
+                <div style="display: grid; gap: 2rem;">
+                    <div
+                        style="background: rgba(255, 255, 255, 0.8); padding: 2rem; border-radius: 15px; border: 2px solid rgba(102, 126, 234, 0.1);">
+                        <h3 style="margin-bottom: 1rem; color: #333;">Personal Information</h3>
+                        <form id="profile-form">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                <div>
+                                    <label
+                                        style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">Full
+                                        Name</label>
+                                    <input type="text" id="profile-fullname" class="form-input"
+                                        placeholder="Enter your full name">
+                                </div>
+                                <div>
+                                    <label
+                                        style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">Email</label>
+                                    <input type="email" id="profile-email" class="form-input"
+                                        placeholder="Enter your email" readonly>
+                                </div>
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <label
+                                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">Professional
+                                    Title</label>
+                                <input type="text" id="profile-title-input" class="form-input"
+                                    placeholder="e.g., Full Stack Developer">
+                            </div>
+                            <div style="margin-bottom: 1rem;">
+                                <label
+                                    style="display: block; margin-bottom: 0.5rem; font-weight: 600; color: #333;">Bio</label>
+                                <textarea id="profile-bio" class="form-textarea"
+                                    placeholder="Tell clients about yourself..."></textarea>
+                            </div>
+                            <button type="submit" class="apply-btn">Update Profile</button>
+                        </form>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Settings Section -->
+            <section id="settings" class="content-section">
+                <div class="section-header">
+                    <h2 class="section-title">Account Settings</h2>
+                </div>
+
+                <div style="display: grid; gap: 2rem;">
+                    <div
+                        style="background: rgba(255, 255, 255, 0.8); padding: 2rem; border-radius: 15px; border: 2px solid rgba(102, 126, 234, 0.1);">
+                        <h3 style="margin-bottom: 1rem; color: #333;">Notification Preferences</h3>
+                        <div style="display: grid; gap: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" checked>
+                                <span>Email notifications for new job matches</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" checked>
+                                <span>SMS notifications for project updates</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox">
+                                <span>Weekly earnings summary</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div
+                        style="background: rgba(255, 255, 255, 0.8); padding: 2rem; border-radius: 15px; border: 2px solid rgba(102, 126, 234, 0.1);">
+                        <h3 style="margin-bottom: 1rem; color: #333;">Account Actions</h3>
+                        <div style="display: flex; gap: 1rem;">
+                            <button class="apply-btn" style="background: #28a745;">Download Data</button>
+                            <button class="apply-btn" style="background: #dc3545;">Delete Account</button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- JavaScript Files -->
+    <script src="/src/scripts/dashboard/auth.js"></script>
+    <script src="/src/scripts/dashboard/navigation.js"></script>
+    <script src="/src/scripts/dashboard/dashboard-overview.js"></script>
+    <script src="/src/scripts/dashboard/jobs.js"></script>
+    <script src="/src/scripts/dashboard/applications.js"></script>
+    <script src="/src/scripts/dashboard/proposals.js"></script>
+    <script src="/src/scripts/dashboard/active-projects.js"></script>
+    <script src="/src/scripts/dashboard/past-projects.js"></script>
+    <script src="/src/scripts/dashboard/credits.js"></script>
+    <script src="/src/scripts/dashboard/profile.js"></script>
+    <script src="/src/scripts/dashboard/settings.js"></script>
+    <script src="/src/scripts/dashboard/notifications.js"></script>
+    <script src="/src/scripts/dashboard/main.js"></script>
+</body>
+
+</html>
