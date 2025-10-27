@@ -901,6 +901,233 @@ async function createNotification(userId, type, title, message, data = {}, prior
   }
 }
 
+// ==================== JOB POSTING & BROWSING API ====================
+
+// Post a new job (Company)
+app.post('/api/jobs/post', async (req, res) => {
+  try {
+    const { companyId, title, description, category, duration, budgetType, budgetAmount, requiredSkills, experienceLevel } = req.body;
+
+    if (!companyId || !title || !description || !category || !duration || !budgetType || !budgetAmount || !experienceLevel) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO jobs (company_id, title, description, category, duration, budget_type, budget_amount, required_skills, experience_level)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [companyId, title, description, category, duration, budgetType, budgetAmount, requiredSkills, experienceLevel]
+    );
+
+    res.json({ success: true, job: result.rows[0] });
+  } catch (err) {
+    console.error('Error posting job:', err);
+    res.status(500).json({ success: false, message: 'Failed to post job' });
+  }
+});
+
+// Get all active jobs (Freelancer)
+app.get('/api/jobs/browse', async (req, res) => {
+  try {
+    const { category, search } = req.query;
+    
+    let query = `
+      SELECT j.*, u.username as company_name, u.email as company_email
+      FROM jobs j
+      JOIN users u ON j.company_id = u.id
+      WHERE j.status = 'active'
+    `;
+    const params = [];
+    
+    if (category && category !== 'All Categories') {
+      params.push(category);
+      query += ` AND j.category = $${params.length}`;
+    }
+    
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (j.title ILIKE $${params.length} OR j.description ILIKE $${params.length})`;
+    }
+    
+    query += ' ORDER BY j.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, jobs: result.rows });
+  } catch (err) {
+    console.error('Error browsing jobs:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch jobs' });
+  }
+});
+
+// Get company's posted jobs
+app.get('/api/jobs/company/:companyId', async (req, res) => {
+  try {
+    const { companyId } = req.params;
+    const { status } = req.query;
+    
+    let query = 'SELECT * FROM jobs WHERE company_id = $1';
+    const params = [companyId];
+    
+    if (status && status !== 'all') {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    
+    query += ' ORDER BY created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, jobs: result.rows });
+  } catch (err) {
+    console.error('Error fetching company jobs:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch jobs' });
+  }
+});
+
+// Apply to a job (Freelancer)
+app.post('/api/jobs/apply', async (req, res) => {
+  try {
+    const { jobId, freelancerId, coverLetter, proposedRate, estimatedDuration } = req.body;
+
+    if (!jobId || !freelancerId) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO job_applications (job_id, freelancer_id, cover_letter, proposed_rate, estimated_duration)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [jobId, freelancerId, coverLetter, proposedRate, estimatedDuration]
+    );
+
+    res.json({ success: true, application: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') { // Unique constraint violation
+      return res.status(400).json({ success: false, message: 'You have already applied to this job' });
+    }
+    console.error('Error applying to job:', err);
+    res.status(500).json({ success: false, message: 'Failed to apply to job' });
+  }
+});
+
+// Get applications for a job (Company)
+app.get('/api/jobs/:jobId/applications', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { status } = req.query;
+    
+    let query = `
+      SELECT ja.*, u.username as freelancer_name, u.email as freelancer_email
+      FROM job_applications ja
+      JOIN users u ON ja.freelancer_id = u.id
+      WHERE ja.job_id = $1
+    `;
+    const params = [jobId];
+    
+    if (status && status !== 'all') {
+      params.push(status);
+      query += ` AND ja.status = $${params.length}`;
+    }
+    
+    query += ' ORDER BY ja.applied_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, applications: result.rows });
+  } catch (err) {
+    console.error('Error fetching applications:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch applications' });
+  }
+});
+
+// Apply to a job (Freelancer)
+app.post('/api/jobs/apply', async (req, res) => {
+  try {
+    const { jobId, freelancerId, coverLetter, proposedRate, estimatedDuration } = req.body;
+
+    if (!jobId || !freelancerId) {
+      return res.status(400).json({ success: false, message: 'Missing required fields' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO job_applications (job_id, freelancer_id, cover_letter, proposed_rate, proposed_timeline)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [jobId, freelancerId, coverLetter, proposedRate, estimatedDuration]
+    );
+
+    res.json({ success: true, application: result.rows[0] });
+  } catch (err) {
+    if (err.code === '23505') { // Unique constraint violation
+      return res.status(400).json({ success: false, message: 'You have already applied to this job' });
+    }
+    console.error('Error applying to job:', err);
+    res.status(500).json({ success: false, message: 'Failed to apply to job' });
+  }
+});
+
+// Get freelancer's applications
+app.get('/api/jobs/applications/freelancer/:freelancerId', async (req, res) => {
+  try {
+    const { freelancerId } = req.params;
+    
+    const result = await pool.query(
+      `SELECT ja.*, j.title as job_title, j.description as job_description, 
+              j.budget_amount, j.budget_type, u.username as company_name
+       FROM job_applications ja
+       JOIN jobs j ON ja.job_id = j.id
+       JOIN users u ON j.company_id = u.id
+       WHERE ja.freelancer_id = $1
+       ORDER BY ja.applied_at DESC`,
+      [freelancerId]
+    );
+    
+    res.json({ success: true, applications: result.rows });
+  } catch (err) {
+    console.error('Error fetching freelancer applications:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch applications' });
+  }
+});
+
+// Update application status (Company)
+app.put('/api/jobs/applications/:applicationId/status', async (req, res) => {
+  try {
+    const { applicationId } = req.params;
+    const { status } = req.body;
+
+    if (!['pending', 'reviewed', 'shortlisted', 'accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const result = await pool.query(
+      'UPDATE job_applications SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [status, applicationId]
+    );
+
+    res.json({ success: true, application: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating application status:', err);
+    res.status(500).json({ success: false, message: 'Failed to update application status' });
+  }
+});
+
+// Update job status (Company)
+app.put('/api/jobs/:jobId/status', async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const { status } = req.body;
+
+    if (!['active', 'paused', 'closed', 'completed'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid status' });
+    }
+
+    const result = await pool.query(
+      'UPDATE jobs SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [status, jobId]
+    );
+
+    res.json({ success: true, job: result.rows[0] });
+  } catch (err) {
+    console.error('Error updating job status:', err);
+    res.status(500).json({ success: false, message: 'Failed to update job status' });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);

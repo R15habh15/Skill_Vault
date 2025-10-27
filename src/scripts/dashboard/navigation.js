@@ -66,13 +66,24 @@ class NavigationManager {
     onSectionChange(sectionId) {
         switch(sectionId) {
             case 'jobs':
-                if (window.jobsManager) {
-                    window.jobsManager.refreshJobs();
+                if (window.jobBrowser) {
+                    window.jobBrowser.loadJobs();
                 }
                 break;
             case 'applications':
-                if (window.applicationsManager) {
-                    window.applicationsManager.refreshApplications();
+                // For freelancer applications
+                if (window.jobBrowser) {
+                    window.jobBrowser.loadMyApplications();
+                }
+                // For company applications received
+                if (window.companyJobManager) {
+                    window.companyJobManager.loadAllApplications();
+                }
+                break;
+            case 'job-listings':
+                // For company job listings
+                if (window.companyJobManager) {
+                    window.companyJobManager.loadCompanyJobs();
                 }
                 break;
             case 'proposals':

@@ -1,187 +1,310 @@
-// Jobs Management
-class JobsManager {
+// Freelancer Job Browsing and Application
+
+class JobBrowser {
     constructor() {
-        this.jobs = [];
-        this.filteredJobs = [];
-        this.currentFilter = 'All Categories';
-        this.currentSearch = '';
         this.init();
     }
 
     init() {
         this.loadJobs();
-        this.setupEventListeners();
+        this.setupFilters();
+        this.loadMyApplications();
     }
 
-    setupEventListeners() {
-        // Search functionality
+    setupFilters() {
+        const categoryFilter = document.querySelector('#jobs .filter-select');
         const searchInput = document.querySelector('#jobs .search-input');
+
+        if (categoryFilter) {
+            categoryFilter.addEventListener('change', () => this.loadJobs());
+        }
+
         if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                this.currentSearch = e.target.value.toLowerCase();
-                this.filterJobs();
-            });
-        }
-
-        // Filter functionality
-        const filterSelect = document.querySelector('#jobs .filter-select');
-        if (filterSelect) {
-            filterSelect.addEventListener('change', (e) => {
-                this.currentFilter = e.target.value;
-                this.filterJobs();
+            searchInput.addEventListener('input', () => {
+                clearTimeout(this.searchTimeout);
+                this.searchTimeout = setTimeout(() => this.loadJobs(), 500);
             });
         }
     }
 
-    // Load available jobs
-    loadJobs() {
-        // Initialize empty jobs array for new users
-        this.jobs = [];
-
-        this.filteredJobs = [...this.jobs];
-        this.renderJobs();
-    }
-
-    // Filter jobs based on search and category
-    filterJobs() {
-        this.filteredJobs = this.jobs.filter(job => {
-            const matchesSearch = this.currentSearch === '' || 
-                job.title.toLowerCase().includes(this.currentSearch) ||
-                job.company.toLowerCase().includes(this.currentSearch) ||
-                job.description.toLowerCase().includes(this.currentSearch) ||
-                job.skills.some(skill => skill.toLowerCase().includes(this.currentSearch));
-
-            const matchesCategory = this.currentFilter === 'All Categories' || 
-                job.category === this.currentFilter;
-
-            return matchesSearch && matchesCategory;
-        });
-
-        this.renderJobs();
-    }
-
-    // Render jobs to the container
-    renderJobs() {
+    async loadJobs() {
         const container = document.getElementById('jobs-container');
         if (!container) return;
 
-        if (this.filteredJobs.length === 0) {
-            container.innerHTML = `
-                <div style="text-align: center; padding: 3rem; color: #666;">
-                    <i class="fas fa-briefcase" style="font-size: 3rem; margin-bottom: 1rem; opacity: 0.3;"></i>
-                    <h3>No Jobs Found</h3>
-                    <p>Try adjusting your search criteria or check back later for new opportunities!</p>
-                    ${this.currentSearch || this.currentFilter !== 'All Categories' ? 
-                        '<button class="apply-btn" onclick="window.jobsManager.clearFilters()" style="margin-top: 1rem;">Clear Filters</button>' : 
-                        ''
-                    }
-                </div>
-            `;
+        const category = document.querySelector('#jobs .filter-select')?.value || '';
+        const search = document.querySelector('#jobs .search-input')?.value || '';
+
+        try {
+            const params = new URLSearchParams();
+            if (category && category !== 'All Categories') params.append('category', category);
+            if (search) params.append('search', search);
+
+            const response = await fetch(`/api/jobs/browse?${params}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.displayJobs(data.jobs, container);
+                this.loadRecentJobs(data.jobs.slice(0, 3));
+            }
+        } catch (err) {
+            console.error('Error loading jobs:', err);
+            container.innerHTML = '<p style="text-align: center; color: #666;">Failed to load jobs</p>';
+        }
+    }
+
+    loadRecentJobs(jobs) {
+        const recentContainer = document.getElementById('recent-jobs-container');
+        if (!recentContainer) return;
+
+        if (jobs.length === 0) {
+            recentContainer.innerHTML = '<p style="text-align: center; color: #666;">No recent jobs available</p>';
             return;
         }
 
-        container.innerHTML = this.filteredJobs.map(job => `
-            <div class="job-card">
-                <div class="job-header">
+        this.displayJobs(jobs, recentContainer);
+    }
+
+    displayJobs(jobs, container) {
+        if (jobs.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #666;">No jobs found</p>';
+            return;
+        }
+
+        container.innerHTML = jobs.map(job => `
+            <div class="job-card" style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
                     <div>
-                        <div class="job-title">${job.title}</div>
-                        <div class="job-company">${job.company}</div>
+                        <h3 style="margin-bottom: 0.5rem; color: #333;">${job.title}</h3>
+                        <p style="color: #667eea; font-size: 0.9rem; margin-bottom: 0.5rem;">
+                            <i class="fas fa-building"></i> ${job.company_name}
+                        </p>
                     </div>
-                    <div class="job-budget">${job.budget}</div>
+                    <div style="text-align: right;">
+                        <div style="font-size: 1.25rem; font-weight: bold; color: #28a745;">${job.budget_amount} VCreds</div>
+                        <div style="font-size: 0.85rem; color: #666;">${job.budget_type}</div>
+                    </div>
                 </div>
-                <div class="job-description">${job.description}</div>
-                <div class="job-skills">
-                    ${job.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+                
+                <p style="color: #666; margin-bottom: 1rem; line-height: 1.6;">${job.description.substring(0, 200)}${job.description.length > 200 ? '...' : ''}</p>
+                
+                <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; font-size: 0.9rem; color: #666;">
+                    <span><i class="fas fa-tag"></i> ${this.formatCategory(job.category)}</span>
+                    <span><i class="fas fa-clock"></i> ${this.formatDuration(job.duration)}</span>
+                    <span><i class="fas fa-chart-line"></i> ${this.formatExperience(job.experience_level)}</span>
                 </div>
-                <div class="job-meta">
-                    <span class="job-date">Posted ${job.postedDate}</span>
-                    <button class="apply-btn" onclick="window.jobsManager.applyToJob(${job.id})">Apply Now</button>
+                
+                ${job.required_skills ? `
+                    <div style="margin-bottom: 1rem;">
+                        <strong style="font-size: 0.9rem;">Required Skills:</strong>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.5rem;">
+                            ${job.required_skills.split(',').map(skill => 
+                                `<span style="background: #e3f2fd; color: #1976d2; padding: 0.25rem 0.75rem; border-radius: 15px; font-size: 0.85rem;">${skill.trim()}</span>`
+                            ).join('')}
+                        </div>
+                    </div>
+                ` : ''}
+                
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <button onclick="jobBrowser.applyToJob(${job.id}, '${job.title}')" class="apply-btn" style="background: linear-gradient(135deg, #667eea, #764ba2);">
+                        <i class="fas fa-paper-plane"></i> Apply Now
+                    </button>
+                    <button onclick="jobBrowser.viewJobDetails(${job.id})" class="apply-btn" style="background: #6c757d;">
+                        <i class="fas fa-info-circle"></i> Details
+                    </button>
                 </div>
             </div>
         `).join('');
     }
 
-    // Apply to a specific job
-    applyToJob(jobId) {
-        const job = this.jobs.find(j => j.id === jobId);
-        if (!job) {
-            alert('Job not found.');
-            return;
-        }
+    formatCategory(category) {
+        return category.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+    }
 
-        const userInfo = authManager.getCurrentUser();
-        if (!userInfo || !userInfo.id) {
-            alert('Please log in to apply for jobs.');
-            return;
-        }
-
-        // Check if already applied
-        const applications = JSON.parse(localStorage.getItem('userApplications') || '[]');
-        const alreadyApplied = applications.some(app => app.jobId === jobId);
-        
-        if (alreadyApplied) {
-            alert('You have already applied to this job.');
-            return;
-        }
-
-        // Create new application
-        const newApplication = {
-            id: Date.now(),
-            jobId: jobId,
-            jobTitle: job.title,
-            company: job.company,
-            status: "Under Review",
-            description: "Your application has been submitted successfully and is under review.",
-            appliedDate: new Date().toLocaleDateString(),
-            budget: job.budget
+    formatDuration(duration) {
+        const map = {
+            '1-week': 'Less than 1 week',
+            '1-month': '1-4 weeks',
+            '3-months': '1-3 months',
+            '6-months': '3-6 months',
+            'long-term': '6+ months'
         };
-        
-        applications.push(newApplication);
-        localStorage.setItem('userApplications', JSON.stringify(applications));
-        
-        alert(`Application submitted successfully for "${job.title}"!`);
-        
-        // Create notification for application submission
-        if (window.notificationsManager) {
-            window.notificationsManager.notifyApplicationStatus(job.title, 'submitted and under review');
+        return map[duration] || duration;
+    }
+
+    formatExperience(level) {
+        const map = {
+            'entry': 'Entry Level',
+            'intermediate': 'Intermediate',
+            'expert': 'Expert'
+        };
+        return map[level] || level;
+    }
+
+    applyToJob(jobId, jobTitle) {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) {
+            alert('Please login to apply for jobs');
+            return;
         }
+
+        const modal = document.createElement('div');
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;';
         
-        // Update dashboard stats
-        if (window.dashboardOverviewManager) {
-            window.dashboardOverviewManager.updateStats();
+        modal.innerHTML = `
+            <div style="background: white; padding: 2rem; border-radius: 15px; max-width: 600px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                <h2 style="margin-bottom: 1rem;">Apply to: ${jobTitle}</h2>
+                <form id="application-form">
+                    <div style="margin-bottom: 1rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Cover Letter</label>
+                        <textarea id="cover-letter" class="form-textarea" rows="6" placeholder="Explain why you're a great fit for this job..." required></textarea>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Proposed Rate (VCreds)</label>
+                            <input type="number" id="proposed-rate" class="form-input" min="1" placeholder="Your rate">
+                        </div>
+                        <div>
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Estimated Duration</label>
+                            <input type="text" id="estimated-duration" class="form-input" placeholder="e.g., 2 weeks">
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                        <button type="button" onclick="this.closest('.modal').remove()" class="apply-btn" style="background: #6c757d;">Cancel</button>
+                        <button type="submit" class="apply-btn" style="background: #28a745;">Submit Application</button>
+                    </div>
+                </form>
+            </div>
+        `;
+        
+        modal.className = 'modal';
+        document.body.appendChild(modal);
+
+        const form = modal.querySelector('#application-form');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await this.submitApplication(jobId, modal);
+        });
+    }
+
+    async submitApplication(jobId, modal) {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        
+        // Get values from modal's form elements
+        const coverLetter = modal.querySelector('#cover-letter').value;
+        const proposedRate = modal.querySelector('#proposed-rate').value;
+        const estimatedDuration = modal.querySelector('#estimated-duration').value;
+        
+        const applicationData = {
+            jobId,
+            freelancerId: userInfo.id,
+            coverLetter: coverLetter,
+            proposedRate: proposedRate || null,
+            estimatedDuration: estimatedDuration || null
+        };
+
+        console.log('Submitting application:', applicationData);
+
+        try {
+            const response = await fetch('/api/jobs/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(applicationData)
+            });
+
+            const data = await response.json();
+            console.log('Application response:', data);
+
+            if (data.success) {
+                alert('Application submitted successfully! You can view it in "My Applications" section.');
+                modal.remove();
+                this.loadMyApplications();
+            } else {
+                alert(data.message || 'Failed to submit application');
+            }
+        } catch (err) {
+            console.error('Error submitting application:', err);
+            alert('Failed to submit application. Please try again.');
         }
     }
 
-    // Clear all filters
-    clearFilters() {
-        this.currentSearch = '';
-        this.currentFilter = 'All Categories';
-        
-        // Reset UI elements
-        const searchInput = document.querySelector('#jobs .search-input');
-        const filterSelect = document.querySelector('#jobs .filter-select');
-        
-        if (searchInput) searchInput.value = '';
-        if (filterSelect) filterSelect.value = 'All Categories';
-        
-        this.filterJobs();
+    async viewJobDetails(jobId) {
+        // For now, just show an alert. You can expand this to show a detailed modal
+        alert('Job details view - Coming soon!');
     }
 
-    // Refresh jobs (for external calls)
-    refreshJobs() {
-        this.loadJobs();
+    async loadMyApplications() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) return;
+
+        const container = document.getElementById('applications-container');
+        if (!container) return;
+
+        try {
+            const response = await fetch(`/api/jobs/applications/freelancer/${userInfo.id}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.displayApplications(data.applications, container);
+            }
+        } catch (err) {
+            console.error('Error loading applications:', err);
+            container.innerHTML = '<p style="text-align: center; color: #666;">Failed to load applications</p>';
+        }
     }
 
-    // Get jobs by category
-    getJobsByCategory(category) {
-        return this.jobs.filter(job => job.category === category);
+    displayApplications(applications, container) {
+        if (applications.length === 0) {
+            container.innerHTML = '<p style="text-align: center; color: #666;">You haven\'t applied to any jobs yet</p>';
+            return;
+        }
+
+        container.innerHTML = applications.map(app => `
+            <div class="job-card" style="background: white; padding: 1.5rem; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 1rem;">
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                    <div>
+                        <h3 style="margin-bottom: 0.5rem;">${app.job_title}</h3>
+                        <p style="color: #667eea; font-size: 0.9rem;">
+                            <i class="fas fa-building"></i> ${app.company_name}
+                        </p>
+                    </div>
+                    <span class="badge" style="background: ${this.getStatusColor(app.status)}; color: white; padding: 0.5rem 1rem; border-radius: 20px;">${app.status}</span>
+                </div>
+                
+                <p style="color: #666; margin-bottom: 1rem;">${app.job_description.substring(0, 150)}...</p>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1rem; font-size: 0.9rem;">
+                    <div>
+                        <strong>Budget:</strong> ${app.budget_amount} VCreds
+                    </div>
+                    ${app.proposed_rate ? `<div><strong>Your Rate:</strong> ${app.proposed_rate} VCreds</div>` : ''}
+                    <div>
+                        <strong>Applied:</strong> ${new Date(app.applied_at).toLocaleDateString()}
+                    </div>
+                </div>
+            </div>
+        `).join('');
     }
 
-    // Get job by ID
-    getJobById(jobId) {
-        return this.jobs.find(job => job.id === jobId);
+    getStatusColor(status) {
+        const colors = {
+            pending: '#6c757d',
+            reviewed: '#17a2b8',
+            shortlisted: '#ffc107',
+            accepted: '#28a745',
+            rejected: '#dc3545'
+        };
+        return colors[status] || '#6c757d';
     }
 }
 
-// Create global jobs manager instance
-window.jobsManager = new JobsManager();
+// Initialize when DOM is ready
+let jobBrowser;
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        jobBrowser = new JobBrowser();
+        window.jobBrowser = jobBrowser;
+    });
+} else {
+    jobBrowser = new JobBrowser();
+    window.jobBrowser = jobBrowser;
+}

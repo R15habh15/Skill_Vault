@@ -32,7 +32,7 @@ class AuthManager {
                 // Update profile title based on user type
                 const profileTitle = document.getElementById('profile-title');
                 if (profileTitle) {
-                    profileTitle.textContent = userInfo.userType === 'freelancer' ? 'Freelancer' : 'Professional';
+                    profileTitle.textContent = userInfo.user_type === 'freelancer' ? 'Freelancer' : 'Professional';
                 }
                 
                 // Update user avatar with first letter of username
@@ -69,7 +69,7 @@ class AuthManager {
                 return false;
             }
             
-            if (userInfo.userType !== 'freelancer') {
+            if (userInfo.user_type !== 'freelancer') {
                 // User is not a freelancer, redirect to home
                 alert('Access denied. This dashboard is for freelancers only.');
                 window.location.href = '/';
