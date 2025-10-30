@@ -8,24 +8,37 @@ class CompanyCreditsManager {
         this.init();
     }
 
-    init() {
-        this.loadCreditsData();
+    async init() {
+        await this.loadCreditsData();
         this.updateDisplay();
-        this.loadTransactions();
+        await this.loadTransactions();
         this.setupEventListeners();
         this.hideSuccessModal(); // Ensure modal is hidden on init
+        
+        // Refresh balance every 10 seconds
+        setInterval(() => this.loadCreditsData(), 10000);
     }
 
-    // Load credits data from localStorage
-    loadCreditsData() {
-        this.balance = parseInt(localStorage.getItem('company_vcreds_balance') || '0');
-        this.totalSpent = parseFloat(localStorage.getItem('company_total_spent') || '0');
-        
-        const storedTransactions = localStorage.getItem('company_transactions');
-        if (storedTransactions) {
-            this.transactions = JSON.parse(storedTransactions);
-        } else {
-            this.generateSampleTransactions();
+    // Load credits data from API
+    async loadCreditsData() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) return;
+
+        try {
+            // Fetch real balance from API
+            const response = await fetch(`/api/credits/balance/${userInfo.id}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.balance = data.balance || 0;
+                this.totalSpent = (data.totalEarned || 0) * 10; // Convert to INR
+                this.updateDisplay();
+            }
+        } catch (err) {
+            console.error('Error loading credits data:', err);
+            // Fallback to localStorage
+            this.balance = parseInt(localStorage.getItem('company_vcreds_balance') || '0');
+            this.totalSpent = parseFloat(localStorage.getItem('company_total_spent') || '0');
         }
     }
 
@@ -53,9 +66,24 @@ class CompanyCreditsManager {
     }
 
     // Load and display transactions
-    loadTransactions() {
+    async loadTransactions() {
         const transactionsList = document.getElementById('company-transactions-list');
         if (!transactionsList) return;
+
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) return;
+
+        try {
+            // Fetch real transactions from API
+            const response = await fetch(`/api/credits/transactions/${userInfo.id}`);
+            const data = await response.json();
+
+            if (data.success && data.transactions) {
+                this.transactions = data.transactions;
+            }
+        } catch (err) {
+            console.error('Error loading transactions:', err);
+        }
 
         if (this.transactions.length === 0) {
             transactionsList.innerHTML = `
@@ -69,7 +97,8 @@ class CompanyCreditsManager {
         }
 
         const transactionsHTML = this.transactions.map(transaction => {
-            const isCredit = transaction.type === 'purchase';
+            const isCredit = transaction.type === 'purchase' || transaction.type === 'received';
+            const isDebit = transaction.type === 'sent' || transaction.type === 'escrow_hold';
             const icon = isCredit ? 'fas fa-plus-circle' : 'fas fa-minus-circle';
             const iconColor = isCredit ? '#28a745' : '#dc3545';
             const amountPrefix = isCredit ? '+' : '-';
@@ -80,9 +109,9 @@ class CompanyCreditsManager {
                         <i class="${icon}"></i>
                     </div>
                     <div class="transaction-details" style="flex: 1;">
-                        <h4 style="margin: 0 0 0.25rem 0; color: #333;">${transaction.description}</h4>
+                        <h4 style="margin: 0 0 0.25rem 0; color: #333;">${transaction.description || transaction.type}</h4>
                         <p style="margin: 0; color: #666; font-size: 0.9rem;">
-                            ${new Date(transaction.date).toLocaleDateString()} • ${transaction.id}
+                            ${new Date(transaction.created_at).toLocaleDateString()} • ${transaction.status || 'completed'}
                         </p>
                     </div>
                     <div class="transaction-amount" style="text-align: right;">
@@ -90,7 +119,7 @@ class CompanyCreditsManager {
                             ${amountPrefix}${transaction.credits} VCreds
                         </div>
                         <div style="color: #666; font-size: 0.9rem;">
-                            ₹${transaction.amount.toLocaleString()}
+                            ₹${(transaction.amount || transaction.credits * 10).toLocaleString()}
                         </div>
                     </div>
                 </div>
@@ -175,7 +204,11 @@ class CompanyCreditsManager {
             return;
         }
 
-        const amount = credits * this.EXCHANGE_RATE;
+        // Get the actual cost (either from data attribute for packages or calculated for custom)
+        const actualCost = customCreditsInput.getAttribute('data-actual-cost');
+        const amount = actualCost ? parseInt(actualCost) : (credits * this.EXCHANGE_RATE);
+        
+        console.log('Amount to charge:', amount); // Debug log
         
         // Confirm purchase
         const confirmed = confirm(`Purchase ${credits} VCreds for ₹${amount.toLocaleString()}?`);
@@ -435,6 +468,7 @@ class CompanyCreditsManager {
     updateCustomCost(credits) {
         const costElement = document.getElementById('custom-cost');
         const purchaseBtn = document.getElementById('purchase-btn');
+        const customCreditsInput = document.getElementById('custom-credits');
         
         if (costElement && purchaseBtn) {
             const amount = parseInt(credits) || 0;
@@ -442,6 +476,11 @@ class CompanyCreditsManager {
             
             costElement.textContent = `₹${cost.toLocaleString()}`;
             purchaseBtn.disabled = amount < 10;
+            
+            // Clear the data-actual-cost attribute when user types custom amount
+            if (customCreditsInput) {
+                customCreditsInput.removeAttribute('data-actual-cost');
+            }
         }
     }
 
@@ -520,17 +559,23 @@ function selectPackage(credits, cost, element) {
     
     try {
         const customCreditsInput = document.getElementById('custom-credits');
+        const costElement = document.getElementById('custom-cost');
+        
         if (customCreditsInput) {
             customCreditsInput.value = credits;
             console.log('Set input value to:', credits); // Debug log
             
-            // Trigger the input event to update cost display
-            const inputEvent = new Event('input', { bubbles: true });
-            customCreditsInput.dispatchEvent(inputEvent);
+            // Set the discounted cost directly
+            if (costElement) {
+                costElement.textContent = `₹${cost.toLocaleString()}`;
+                // Store the actual cost for purchase
+                customCreditsInput.setAttribute('data-actual-cost', cost);
+            }
             
-            // Also manually update cost if manager is available
-            if (window.companyCreditsManager) {
-                window.companyCreditsManager.updateCustomCost(credits);
+            // Enable purchase button
+            const purchaseBtn = document.getElementById('purchase-btn');
+            if (purchaseBtn) {
+                purchaseBtn.disabled = false;
             }
         }
         

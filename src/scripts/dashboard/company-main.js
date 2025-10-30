@@ -81,12 +81,29 @@ class CompanyDashboardManager {
     }
 
     // Update dashboard statistics
-    updateStats() {
+    async updateStats() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        
         // Load stats from localStorage
         this.stats.activeJobs = parseInt(localStorage.getItem('company_active_jobs') || '0');
         this.stats.totalApplications = parseInt(localStorage.getItem('company_total_applications') || '0');
         this.stats.hiredCount = parseInt(localStorage.getItem('company_hired_count') || '0');
-        this.stats.vcredsBalance = parseInt(localStorage.getItem('company_vcreds_balance') || '0');
+        
+        // Fetch real balance from API
+        if (userInfo) {
+            try {
+                const response = await fetch(`/api/credits/balance/${userInfo.id}`);
+                const data = await response.json();
+                if (data.success) {
+                    this.stats.vcredsBalance = data.balance || 0;
+                }
+            } catch (err) {
+                console.error('Error loading balance:', err);
+                this.stats.vcredsBalance = parseInt(localStorage.getItem('company_vcreds_balance') || '0');
+            }
+        } else {
+            this.stats.vcredsBalance = parseInt(localStorage.getItem('company_vcreds_balance') || '0');
+        }
 
         // Update display
         this.displayStats();

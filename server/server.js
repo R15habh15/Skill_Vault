@@ -2,9 +2,16 @@ const express = require('express');
 const { Pool } = require('pg');
 const path = require('path');
 const bcrypt = require('bcrypt');
+const http = require('http');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
+// Import APIs
+const workSubmissionAPI = require('./api/work-submission');
+const premiumSubscriptionAPI = require('./api/premium-subscription');
+
 const app = express();
+const server = http.createServer(app);
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..')));
 
@@ -67,7 +74,7 @@ app.get('/company-dashboard', (req, res) => {
 
 
 app.post('/api/register', async (req, res) => {
-  const { username, email, password, userType } = req.body;
+  const { username, email, password, userType, companyProfile } = req.body;
 
   // Log registration attempt without sensitive data
   console.log('📝 Registration request received:', {
@@ -192,6 +199,29 @@ app.post('/api/register', async (req, res) => {
       'INSERT INTO users(username, email, password_hash, user_type) VALUES($1, $2, $3, $4) RETURNING id, username, email, user_type',
       [username, email, hashedPassword, userType]
     );
+
+    const userId = result.rows[0].id;
+
+    // If company registration, save company profile data
+    if (userType === 'company' && companyProfile) {
+      console.log('Saving company profile data for user:', userId);
+      await client.query(
+        `INSERT INTO company_profiles 
+        (user_id, company_name, registration_number, business_email, business_phone, business_address, representative_name, representative_position) 
+        VALUES($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [
+          userId,
+          companyProfile.companyName,
+          companyProfile.registrationNumber,
+          companyProfile.businessEmail,
+          companyProfile.businessPhone,
+          companyProfile.businessAddress,
+          companyProfile.representativeName,
+          companyProfile.representativePosition
+        ]
+      );
+      console.log('✅ Company profile saved successfully');
+    }
 
     // Log success without exposing user data
     console.log('✅ User account created successfully for:', email);
@@ -837,13 +867,14 @@ app.patch('/api/notifications/:userId/read-all', async (req, res) => {
     console.log('✅ Marking all notifications as read for user:', userId);
 
     const result = await pool.query(
-      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE RETURNING COUNT(*)',
+      'UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE RETURNING id',
       [userId]
     );
 
     res.json({
       success: true,
-      message: 'All notifications marked as read'
+      message: 'All notifications marked as read',
+      count: result.rows.length
     });
   } catch (err) {
     console.error('Error marking all notifications as read:', err);
@@ -929,7 +960,7 @@ app.post('/api/jobs/post', async (req, res) => {
 app.get('/api/jobs/browse', async (req, res) => {
   try {
     const { category, search } = req.query;
-    
+
     let query = `
       SELECT j.*, u.username as company_name, u.email as company_email
       FROM jobs j
@@ -937,19 +968,19 @@ app.get('/api/jobs/browse', async (req, res) => {
       WHERE j.status = 'active'
     `;
     const params = [];
-    
+
     if (category && category !== 'All Categories') {
       params.push(category);
       query += ` AND j.category = $${params.length}`;
     }
-    
+
     if (search) {
       params.push(`%${search}%`);
       query += ` AND (j.title ILIKE $${params.length} OR j.description ILIKE $${params.length})`;
     }
-    
+
     query += ' ORDER BY j.created_at DESC';
-    
+
     const result = await pool.query(query, params);
     res.json({ success: true, jobs: result.rows });
   } catch (err) {
@@ -963,17 +994,17 @@ app.get('/api/jobs/company/:companyId', async (req, res) => {
   try {
     const { companyId } = req.params;
     const { status } = req.query;
-    
+
     let query = 'SELECT * FROM jobs WHERE company_id = $1';
     const params = [companyId];
-    
+
     if (status && status !== 'all') {
       params.push(status);
       query += ` AND status = $${params.length}`;
     }
-    
+
     query += ' ORDER BY created_at DESC';
-    
+
     const result = await pool.query(query, params);
     res.json({ success: true, jobs: result.rows });
   } catch (err) {
@@ -1012,7 +1043,7 @@ app.get('/api/jobs/:jobId/applications', async (req, res) => {
   try {
     const { jobId } = req.params;
     const { status } = req.query;
-    
+
     let query = `
       SELECT ja.*, u.username as freelancer_name, u.email as freelancer_email
       FROM job_applications ja
@@ -1020,14 +1051,14 @@ app.get('/api/jobs/:jobId/applications', async (req, res) => {
       WHERE ja.job_id = $1
     `;
     const params = [jobId];
-    
+
     if (status && status !== 'all') {
       params.push(status);
       query += ` AND ja.status = $${params.length}`;
     }
-    
+
     query += ' ORDER BY ja.applied_at DESC';
-    
+
     const result = await pool.query(query, params);
     res.json({ success: true, applications: result.rows });
   } catch (err) {
@@ -1036,36 +1067,11 @@ app.get('/api/jobs/:jobId/applications', async (req, res) => {
   }
 });
 
-// Apply to a job (Freelancer)
-app.post('/api/jobs/apply', async (req, res) => {
-  try {
-    const { jobId, freelancerId, coverLetter, proposedRate, estimatedDuration } = req.body;
-
-    if (!jobId || !freelancerId) {
-      return res.status(400).json({ success: false, message: 'Missing required fields' });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO job_applications (job_id, freelancer_id, cover_letter, proposed_rate, proposed_timeline)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [jobId, freelancerId, coverLetter, proposedRate, estimatedDuration]
-    );
-
-    res.json({ success: true, application: result.rows[0] });
-  } catch (err) {
-    if (err.code === '23505') { // Unique constraint violation
-      return res.status(400).json({ success: false, message: 'You have already applied to this job' });
-    }
-    console.error('Error applying to job:', err);
-    res.status(500).json({ success: false, message: 'Failed to apply to job' });
-  }
-});
-
 // Get freelancer's applications
 app.get('/api/jobs/applications/freelancer/:freelancerId', async (req, res) => {
   try {
     const { freelancerId } = req.params;
-    
+
     const result = await pool.query(
       `SELECT ja.*, j.title as job_title, j.description as job_description, 
               j.budget_amount, j.budget_type, u.username as company_name
@@ -1076,7 +1082,7 @@ app.get('/api/jobs/applications/freelancer/:freelancerId', async (req, res) => {
        ORDER BY ja.applied_at DESC`,
       [freelancerId]
     );
-    
+
     res.json({ success: true, applications: result.rows });
   } catch (err) {
     console.error('Error fetching freelancer applications:', err);
@@ -1084,25 +1090,227 @@ app.get('/api/jobs/applications/freelancer/:freelancerId', async (req, res) => {
   }
 });
 
-// Update application status (Company)
+// Update application status (Company) - Enhanced with auto-rejection and project creation
 app.put('/api/jobs/applications/:applicationId/status', async (req, res) => {
-  try {
-    const { applicationId } = req.params;
-    const { status } = req.body;
+  const { applicationId } = req.params;
+  const { status } = req.body;
 
-    if (!['pending', 'reviewed', 'shortlisted', 'accepted', 'rejected'].includes(status)) {
-      return res.status(400).json({ success: false, message: 'Invalid status' });
+  if (!['pending', 'reviewed', 'shortlisted', 'accepted', 'rejected'].includes(status)) {
+    return res.status(400).json({ success: false, message: 'Invalid status' });
+  }
+
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // Get application details
+    const appResult = await client.query(
+      `SELECT ja.*, j.title as job_title, j.company_id, j.budget_amount, j.status as job_status, j.description,
+              u.username as freelancer_name, u.email as freelancer_email,
+              c.username as company_name
+       FROM job_applications ja
+       JOIN jobs j ON ja.job_id = j.id
+       JOIN users u ON ja.freelancer_id = u.id
+       JOIN users c ON j.company_id = c.id
+       WHERE ja.id = $1`,
+      [applicationId]
+    );
+
+    if (appResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ success: false, message: 'Application not found' });
     }
 
-    const result = await pool.query(
-      'UPDATE job_applications SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+    const application = appResult.rows[0];
+
+    // Handle ACCEPT status - special workflow
+    if (status === 'accepted') {
+      // Check if job is still active
+      if (application.job_status !== 'active') {
+        await client.query('ROLLBACK');
+        return res.status(400).json({
+          success: false,
+          message: 'This job is no longer active'
+        });
+      }
+
+      // Update this application to accepted
+      await client.query(
+        'UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['accepted', applicationId]
+      );
+
+      // Auto-reject all other applications for this job
+      await client.query(
+        `UPDATE job_applications 
+         SET status = 'rejected', updated_at = NOW() 
+         WHERE job_id = $1 AND id != $2 AND status NOT IN ('accepted', 'rejected')`,
+        [application.job_id, applicationId]
+      );
+
+      // Close the job (no more applications accepted)
+      await client.query(
+        'UPDATE jobs SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['closed', application.job_id]
+      );
+
+      // Create active project
+      const projectResult = await client.query(
+        `INSERT INTO active_projects 
+         (job_id, application_id, company_id, freelancer_id, title, 
+          description, budget_amount, agreed_rate, agreed_timeline, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'active')
+         RETURNING *`,
+        [
+          application.job_id,
+          applicationId,
+          application.company_id,
+          application.freelancer_id,
+          application.job_title,
+          application.description || 'Project from job application',
+          application.budget_amount,
+          application.proposed_rate || application.budget_amount,
+          application.proposed_timeline,
+        ]
+      );
+
+      const project = projectResult.rows[0];
+
+      // Add or update hired freelancer record
+      await client.query(
+        `INSERT INTO hired_freelancers 
+         (company_id, freelancer_id, total_projects, active_projects, total_credits_paid)
+         VALUES ($1, $2, 1, 1, 0)
+         ON CONFLICT (company_id, freelancer_id) 
+         DO UPDATE SET 
+           total_projects = hired_freelancers.total_projects + 1,
+           active_projects = hired_freelancers.active_projects + 1,
+           last_project_date = NOW(),
+           updated_at = NOW()`,
+        [application.company_id, application.freelancer_id]
+      );
+
+      // Notify freelancer about acceptance
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, data, priority) 
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          application.freelancer_id,
+          'application_status',
+          'Application Accepted! 🎉',
+          `Congratulations! Your application for "${application.job_title}" has been accepted by ${application.company_name}. The project is now active.`,
+          JSON.stringify({ applicationId, jobId: application.job_id, projectId: project.id, status: 'accepted' }),
+          'high'
+        ]
+      );
+
+      // Notify company about project creation
+      await client.query(
+        `INSERT INTO notifications (user_id, type, title, message, data, priority) 
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [
+          application.company_id,
+          'project_update',
+          'New Project Started',
+          `Project "${application.job_title}" with ${application.freelancer_name} has been created and is now active.`,
+          JSON.stringify({ applicationId, jobId: application.job_id, projectId: project.id }),
+          'high'
+        ]
+      );
+
+      // Get other rejected applicants and notify them
+      const rejectedApps = await client.query(
+        `SELECT ja.freelancer_id, u.username 
+         FROM job_applications ja
+         JOIN users u ON ja.freelancer_id = u.id
+         WHERE ja.job_id = $1 AND ja.id != $2 AND ja.status = 'rejected'`,
+        [application.job_id, applicationId]
+      );
+
+      for (const rejectedApp of rejectedApps.rows) {
+        await client.query(
+          `INSERT INTO notifications (user_id, type, title, message, data, priority) 
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            rejectedApp.freelancer_id,
+            'application_status',
+            'Application Update',
+            `Your application for "${application.job_title}" was not selected. The position has been filled.`,
+            JSON.stringify({ applicationId, jobId: application.job_id, status: 'rejected' }),
+            'normal'
+          ]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      console.log(`✅ Application ${applicationId} accepted, project created, ${rejectedApps.rows.length} other applications rejected`);
+
+      return res.json({
+        success: true,
+        message: 'Application accepted and project created successfully',
+        project: project,
+        rejectedCount: rejectedApps.rows.length
+      });
+    }
+
+    // Handle other status updates (reviewed, shortlisted, rejected)
+    await client.query(
+      'UPDATE job_applications SET status = $1, updated_at = NOW() WHERE id = $2',
       [status, applicationId]
     );
 
-    res.json({ success: true, application: result.rows[0] });
+    // Notify freelancer about status change
+    let notificationTitle = 'Application Update';
+    let notificationMessage = '';
+
+    switch (status) {
+      case 'reviewed':
+        notificationTitle = 'Application Reviewed';
+        notificationMessage = `Your application for "${application.job_title}" has been reviewed by ${application.company_name}.`;
+        break;
+      case 'shortlisted':
+        notificationTitle = 'You\'ve Been Shortlisted! ⭐';
+        notificationMessage = `Great news! You've been shortlisted for "${application.job_title}" by ${application.company_name}.`;
+        break;
+      case 'rejected':
+        notificationTitle = 'Application Update';
+        notificationMessage = `Your application for "${application.job_title}" was not selected this time.`;
+        break;
+    }
+
+    await client.query(
+      `INSERT INTO notifications (user_id, type, title, message, data, priority) 
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [
+        application.freelancer_id,
+        'application_status',
+        notificationTitle,
+        notificationMessage,
+        JSON.stringify({ applicationId, jobId: application.job_id, status }),
+        status === 'shortlisted' ? 'high' : 'normal'
+      ]
+    );
+
+    await client.query('COMMIT');
+
+    console.log(`✅ Application ${applicationId} status updated to ${status}`);
+
+    res.json({
+      success: true,
+      message: `Application ${status} successfully`
+    });
+
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Error updating application status:', err);
-    res.status(500).json({ success: false, message: 'Failed to update application status' });
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update application status'
+    });
+  } finally {
+    client.release();
   }
 });
 
@@ -1128,7 +1336,599 @@ app.put('/api/jobs/:jobId/status', async (req, res) => {
   }
 });
 
+// ==================== ACTIVE PROJECTS & HIRED FREELANCERS API ====================
+
+// Get active projects for a user (company or freelancer)
+app.get('/api/jobs/projects/user/:userId', async (req, res) => {
+  const { userId } = req.params;
+  const { userType } = req.query; // 'company' or 'freelancer'
+
+  try {
+    let query;
+    if (userType === 'company') {
+      query = `
+        SELECT ap.*, 
+               u.username as freelancer_name, 
+               u.email as freelancer_email,
+               j.title as original_job_title
+        FROM active_projects ap
+        JOIN users u ON ap.freelancer_id = u.id
+        JOIN jobs j ON ap.job_id = j.id
+        WHERE ap.company_id = $1 AND ap.status != 'completed'
+        ORDER BY ap.created_at DESC
+      `;
+    } else {
+      query = `
+        SELECT ap.*, 
+               u.username as company_name, 
+               u.email as company_email,
+               j.title as original_job_title
+        FROM active_projects ap
+        JOIN users u ON ap.company_id = u.id
+        JOIN jobs j ON ap.job_id = j.id
+        WHERE ap.freelancer_id = $1 AND ap.status != 'completed'
+        ORDER BY ap.created_at DESC
+      `;
+    }
+
+    const result = await pool.query(query, [userId]);
+
+    res.json({
+      success: true,
+      projects: result.rows
+    });
+  } catch (err) {
+    console.error('Error fetching active projects:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch active projects'
+    });
+  }
+});
+
+// Get hired freelancers for a company
+app.get('/api/jobs/hired-freelancers/:companyId', async (req, res) => {
+  const { companyId } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT hf.*, 
+              u.username as freelancer_name, 
+              u.email as freelancer_email,
+              u.created_at as freelancer_joined_date
+       FROM hired_freelancers hf
+       JOIN users u ON hf.freelancer_id = u.id
+       WHERE hf.company_id = $1
+       ORDER BY hf.last_project_date DESC`,
+      [companyId]
+    );
+
+    res.json({
+      success: true,
+      freelancers: result.rows
+    });
+  } catch (err) {
+    console.error('Error fetching hired freelancers:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch hired freelancers'
+    });
+  }
+});
+
+// Update project status
+app.put('/api/jobs/projects/:projectId/status', async (req, res) => {
+  const { projectId } = req.params;
+  const { status, progressPercentage } = req.body;
+
+  try {
+    const updates = [];
+    const values = [];
+    let paramCount = 1;
+
+    if (status) {
+      updates.push(`status = $${paramCount++}`);
+      values.push(status);
+    }
+
+    if (progressPercentage !== undefined) {
+      updates.push(`progress_percentage = $${paramCount++}`);
+      values.push(progressPercentage);
+    }
+
+    if (status === 'completed') {
+      updates.push(`completed_at = NOW()`);
+    }
+
+    values.push(projectId);
+
+    const result = await pool.query(
+      `UPDATE active_projects 
+       SET ${updates.join(', ')}, updated_at = NOW()
+       WHERE id = $${paramCount}
+       RETURNING *`,
+      values
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'Project not found'
+      });
+    }
+
+    console.log(`✅ Project ${projectId} updated:`, { status, progressPercentage });
+
+    res.json({
+      success: true,
+      project: result.rows[0]
+    });
+  } catch (err) {
+    console.error('Error updating project status:', err);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update project status'
+    });
+  }
+});
+
+// Mount work submission routes
+app.use('/api/work-submission', workSubmissionAPI(pool));
+
+// Mount premium subscription routes
+app.use('/api/premium', premiumSubscriptionAPI(pool));
+
+// Get Razorpay public key
+app.get('/api/config/razorpay-key', (req, res) => {
+  res.json({
+    success: true,
+    key: process.env.RAZORPAY_KEY_ID
+  });
+});
+
+// Credits and Escrow API Routes
+app.get('/api/credits/balance/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const balanceResult = await pool.query('SELECT credits FROM user_credits WHERE user_id = $1', [userId]);
+    const balance = balanceResult.rows.length > 0 ? balanceResult.rows[0].credits : 0;
+    const earnedResult = await pool.query('SELECT COALESCE(SUM(credits), 0) as total FROM credit_transactions WHERE user_id = $1 AND type IN ($2, $3) AND status = $4', [userId, 'earned', 'project_payment', 'completed']);
+    const pendingResult = await pool.query('SELECT COALESCE(SUM(credits_amount), 0) as total FROM escrow_transactions WHERE freelancer_id = $1 AND status = $2', [userId, 'held']);
+    res.json({ success: true, balance: balance, totalEarned: earnedResult.rows[0].total, pendingPayments: pendingResult.rows[0].total });
+  } catch (err) {
+    console.error('Error fetching credits balance:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch balance' });
+  }
+});
+
+app.get('/api/credits/transactions/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { type, limit = 50 } = req.query;
+    let query = 'SELECT * FROM credit_transactions WHERE user_id = $1';
+    const params = [userId];
+    if (type) { params.push(type); query += ` AND type = $${params.length}`; }
+    query += ' ORDER BY created_at DESC LIMIT $' + (params.length + 1);
+    params.push(limit);
+    const result = await pool.query(query, params);
+    res.json({ success: true, transactions: result.rows });
+  } catch (err) {
+    console.error('Error fetching transactions:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch transactions' });
+  }
+});
+
+// Get company profile
+app.get('/api/company/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM company_profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    if (result.rows.length > 0) {
+      res.json({ success: true, profile: result.rows[0] });
+    } else {
+      res.json({ success: false, message: 'Company profile not found' });
+    }
+  } catch (err) {
+    console.error('Error fetching company profile:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch company profile' });
+  }
+});
+
+// Update company profile
+app.put('/api/company/profile/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const {
+      companyName,
+      registrationNumber,
+      businessEmail,
+      businessPhone,
+      businessAddress,
+      representativeName,
+      representativePosition,
+      companyDescription
+    } = req.body;
+
+    const result = await pool.query(
+      `UPDATE company_profiles 
+            SET company_name = $1, 
+                registration_number = $2, 
+                business_email = $3, 
+                business_phone = $4, 
+                business_address = $5, 
+                representative_name = $6, 
+                representative_position = $7,
+                company_description = $8,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = $9
+            RETURNING *`,
+      [companyName, registrationNumber, businessEmail, businessPhone, businessAddress,
+        representativeName, representativePosition, companyDescription, userId]
+    );
+
+    if (result.rows.length > 0) {
+      res.json({ success: true, profile: result.rows[0] });
+    } else {
+      res.status(404).json({ success: false, message: 'Company profile not found' });
+    }
+  } catch (err) {
+    console.error('Error updating company profile:', err);
+    res.status(500).json({ success: false, message: 'Failed to update company profile' });
+  }
+});
+
+app.post('/api/credits/withdraw', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { userId, amount } = req.body;
+
+    console.log('Withdrawal request:', { userId, amount });
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+
+    if (!amount || isNaN(amount) || amount <= 0) {
+      return res.status(400).json({ success: false, message: 'Invalid withdrawal amount' });
+    }
+
+    if (amount < 100) {
+      return res.status(400).json({ success: false, message: 'Minimum withdrawal is 100 VCreds' });
+    }
+
+    await client.query('BEGIN');
+    const balanceResult = await client.query('SELECT credits FROM user_credits WHERE user_id = $1', [userId]);
+
+    if (balanceResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'User account not found' });
+    }
+
+    const currentBalance = balanceResult.rows[0].credits;
+    console.log('Current balance:', currentBalance, 'Requested:', amount);
+
+    if (currentBalance < amount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: `Insufficient balance. Available: ${currentBalance} VCreds, Requested: ${amount} VCreds` });
+    }
+    // Deduct credits immediately
+    await client.query('UPDATE user_credits SET credits = credits - $1, updated_at = NOW() WHERE user_id = $2', [amount, userId]);
+
+    // Log transaction as completed (not pending)
+    await client.query(`INSERT INTO credit_transactions (user_id, type, amount, credits, description, status) VALUES ($1, 'withdrawal', $2, $3, $4, 'completed')`, [userId, amount * 10, amount, `Withdrawal completed - ${amount} VCreds (₹${amount * 10})`]);
+
+    // Create withdrawal record
+    await client.query(`INSERT INTO withdrawal_requests (user_id, credits, gross_amount, processing_fee, net_amount, method, account_details, status, transaction_id, processed_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`, [userId, amount, amount * 10, amount * 10 * 0.02, amount * 10 * 0.98, 'bank', JSON.stringify({ note: 'Auto-processed' }), 'completed', `WD-${Date.now()}`]);
+
+    // Create notification
+    await client.query(`INSERT INTO notifications (user_id, type, title, message, data, priority) VALUES ($1, 'withdrawal_requested', 'Withdrawal Completed', 'Your withdrawal of ${amount} VCreds (₹${amount * 10}) has been processed successfully', $2, 'high')`, [userId, JSON.stringify({ amount, amountInr: amount * 10, status: 'completed' })]);
+
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Withdrawal completed successfully!', newBalance: balanceResult.rows[0].credits - amount });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error requesting withdrawal:', err);
+    res.status(500).json({ success: false, message: 'Failed to request withdrawal' });
+  } finally {
+    client.release();
+  }
+});
+
+app.post('/api/escrow/create', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { projectId, companyId, freelancerId, amount } = req.body;
+    await client.query('BEGIN');
+    const balanceResult = await client.query('SELECT credits FROM user_credits WHERE user_id = $1', [companyId]);
+    if (balanceResult.rows.length === 0 || balanceResult.rows[0].credits < amount) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ success: false, message: 'Insufficient credits' });
+    }
+    await client.query('UPDATE user_credits SET credits = credits - $1, updated_at = NOW() WHERE user_id = $2', [amount, companyId]);
+    const escrowResult = await client.query(`INSERT INTO escrow_transactions (project_id, company_id, freelancer_id, credits_amount, status) VALUES ($1, $2, $3, $4, 'held') RETURNING *`, [projectId, companyId, freelancerId, amount]);
+    await client.query(`INSERT INTO credit_transactions (user_id, type, amount, credits, description, status) VALUES ($1, 'escrow_hold', $2, $3, $4, 'completed')`, [companyId, amount * 10, amount, `Escrow hold for project #${projectId}`]);
+    await client.query('UPDATE active_projects SET credits_held = $1, updated_at = NOW() WHERE id = $2', [amount, projectId]);
+    await client.query('COMMIT');
+    res.json({ success: true, escrow: escrowResult.rows[0] });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Error creating escrow:', err);
+    res.status(500).json({ success: false, message: 'Failed to create escrow' });
+  } finally {
+    client.release();
+  }
+});
+
+// ==================== CHAT SYSTEM API ====================
+
+// Get user conversations
+app.get('/api/chat/conversations/:userId', async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const result = await pool.query(
+      `WITH conversation_contacts AS (
+        SELECT DISTINCT 
+          CASE 
+            WHEN sender_id = $1 THEN receiver_id 
+            ELSE sender_id 
+          END as contact_id
+        FROM messages
+        WHERE sender_id = $1 OR receiver_id = $1
+      )
+      SELECT 
+        cc.contact_id,
+        u.username as contact_name,
+        u.user_type as contact_type,
+        (SELECT MAX(timestamp) 
+         FROM messages 
+         WHERE (sender_id = $1 AND receiver_id = cc.contact_id) 
+            OR (sender_id = cc.contact_id AND receiver_id = $1)
+        ) as last_message_time,
+        (SELECT message 
+         FROM messages 
+         WHERE (sender_id = $1 AND receiver_id = cc.contact_id) 
+            OR (sender_id = cc.contact_id AND receiver_id = $1)
+         ORDER BY timestamp DESC 
+         LIMIT 1
+        ) as last_message,
+        (SELECT COUNT(*) 
+         FROM messages 
+         WHERE receiver_id = $1 
+           AND sender_id = cc.contact_id 
+           AND is_read = FALSE
+        ) as unread_count
+      FROM conversation_contacts cc
+      JOIN users u ON u.id = cc.contact_id
+      ORDER BY last_message_time DESC`,
+      [userId]
+    );
+
+    res.json({ success: true, conversations: result.rows });
+  } catch (err) {
+    console.error('Error fetching conversations:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch conversations' });
+  }
+});
+
+// Get messages between two users
+app.get('/api/chat/messages/:userId/:contactId', async (req, res) => {
+  try {
+    const { userId, contactId } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+
+    const result = await pool.query(
+      `SELECT m.*, 
+        sender.username as sender_name,
+        receiver.username as receiver_name
+      FROM messages m
+      JOIN users sender ON m.sender_id = sender.id
+      JOIN users receiver ON m.receiver_id = receiver.id
+      WHERE (sender_id = $1 AND receiver_id = $2) 
+         OR (sender_id = $2 AND receiver_id = $1)
+      ORDER BY timestamp ASC
+      LIMIT $3 OFFSET $4`,
+      [userId, contactId, limit, offset]
+    );
+
+    // Mark messages as read
+    await pool.query(
+      `UPDATE messages 
+       SET is_read = TRUE 
+       WHERE receiver_id = $1 AND sender_id = $2 AND is_read = FALSE`,
+      [userId, contactId]
+    );
+
+    res.json({ success: true, messages: result.rows });
+  } catch (err) {
+    console.error('Error fetching messages:', err);
+    res.status(500).json({ success: false, message: 'Failed to fetch messages' });
+  }
+});
+
+// Send a message
+app.post('/api/chat/send', async (req, res) => {
+  try {
+    const { senderId, receiverId, message } = req.body;
+
+    if (!senderId || !receiverId || !message?.trim()) {
+      return res.status(400).json({ success: false, message: 'Invalid message data' });
+    }
+
+    const result = await pool.query(
+      `INSERT INTO messages (sender_id, receiver_id, message, timestamp, is_read)
+       VALUES ($1, $2, $3, NOW(), FALSE) RETURNING *`,
+      [senderId, receiverId, message.trim()]
+    );
+
+    const senderInfo = await pool.query(
+      'SELECT username, user_type FROM users WHERE id = $1',
+      [senderId]
+    );
+
+    const messageData = {
+      ...result.rows[0],
+      sender_name: senderInfo.rows[0]?.username || 'Unknown',
+      sender_type: senderInfo.rows[0]?.user_type || 'user'
+    };
+
+    res.json({ success: true, message: messageData });
+  } catch (err) {
+    console.error('Error sending message:', err);
+    res.status(500).json({ success: false, message: 'Failed to send message' });
+  }
+});
+
+// Mark messages as read
+app.put('/api/chat/mark-read/:userId/:contactId', async (req, res) => {
+  try {
+    const { userId, contactId } = req.params;
+
+    await pool.query(
+      `UPDATE messages 
+       SET is_read = TRUE 
+       WHERE receiver_id = $1 AND sender_id = $2 AND is_read = FALSE`,
+      [userId, contactId]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error marking messages as read:', err);
+    res.status(500).json({ success: false, message: 'Failed to mark messages as read' });
+  }
+});
+
+// Search users for chat
+app.get('/api/chat/search-users/:query', async (req, res) => {
+  try {
+    const { query } = req.params;
+    const { userId } = req.query;
+
+    const result = await pool.query(
+      `SELECT id, username, email, user_type 
+       FROM users 
+       WHERE (LOWER(username) LIKE LOWER($1) OR LOWER(email) LIKE LOWER($1))
+         AND id != $2
+       LIMIT 10`,
+      [`%${query}%`, userId]
+    );
+
+    res.json({ success: true, users: result.rows });
+  } catch (err) {
+    console.error('Error searching users:', err);
+    res.status(500).json({ success: false, message: 'Failed to search users' });
+  }
+});
+
+// ==================== SOCKET.IO REAL-TIME CHAT ====================
+
+const { Server } = require('socket.io');
+
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Online users tracking
+const onlineUsers = new Map();
+
+io.on('connection', (socket) => {
+  console.log('💬 New socket connected:', socket.id);
+
+  socket.on('user_connected', (userId) => {
+    if (!userId) return;
+    onlineUsers.set(String(userId), socket.id);
+    socket.userId = String(userId);
+    console.log(`✅ User ${userId} connected (socket ${socket.id})`);
+    io.emit('user_online', { userId: String(userId), online: true });
+  });
+
+  socket.on('sendMessage', async (data) => {
+    const { senderId, receiverId, message } = data;
+    if (!senderId || !receiverId || !message?.trim()) {
+      return socket.emit('error', { message: 'Invalid message payload' });
+    }
+
+    try {
+      const result = await pool.query(
+        `INSERT INTO messages (sender_id, receiver_id, message, timestamp, is_read)
+         VALUES ($1, $2, $3, NOW(), FALSE) RETURNING *`,
+        [senderId, receiverId, message.trim()]
+      );
+
+      const senderInfo = await pool.query(
+        'SELECT username, user_type FROM users WHERE id = $1',
+        [senderId]
+      );
+
+      const messageData = {
+        ...result.rows[0],
+        sender_name: senderInfo.rows[0]?.username || 'Unknown',
+        sender_type: senderInfo.rows[0]?.user_type || 'user'
+      };
+
+      // Acknowledge to sender
+      socket.emit('message_sent', messageData);
+
+      // Deliver to receiver if online
+      const receiverSocketId = onlineUsers.get(String(receiverId));
+      if (receiverSocketId) {
+        io.to(receiverSocketId).emit('receiveMessage', messageData);
+      }
+
+      console.log(`📨 ${senderId} → ${receiverId}: ${message.substring(0, 40)}`);
+    } catch (err) {
+      console.error('❌ Error saving message', err);
+      socket.emit('error', { message: 'Failed to save message' });
+    }
+  });
+
+  socket.on('typing', (data) => {
+    const { senderId, receiverId, isTyping } = data;
+    const receiverSocketId = onlineUsers.get(String(receiverId));
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('user_typing', { userId: String(senderId), isTyping });
+    }
+  });
+
+  socket.on('mark_read', async (data) => {
+    const { userId, contactId } = data;
+    try {
+      await pool.query(
+        `UPDATE messages SET is_read = TRUE WHERE receiver_id = $1 AND sender_id = $2 AND is_read = FALSE`,
+        [userId, contactId]
+      );
+
+      const senderSocketId = onlineUsers.get(String(contactId));
+      if (senderSocketId) {
+        io.to(senderSocketId).emit('messages_read', { userId: String(userId) });
+      }
+    } catch (err) {
+      console.error('❌ Error marking read via socket', err);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    if (socket.userId) {
+      onlineUsers.delete(String(socket.userId));
+      io.emit('user_online', { userId: String(socket.userId), online: false });
+      console.log(`🔴 User ${socket.userId} disconnected`);
+    } else {
+      console.log('Socket disconnected:', socket.id);
+    }
+  });
+});
+
+// ==================== SERVER START ====================
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+server.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`💬 Socket.IO chat enabled`);
 });

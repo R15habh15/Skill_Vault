@@ -14,23 +14,43 @@ class CreditsManager {
         this.init();
     }
 
-    init() {
-        this.loadUserCredits();
+    async init() {
+        await this.loadUserCredits();
         this.updateDashboard();
-        this.generateSampleTransactions();
+        await this.generateSampleTransactions();
         this.displayTransactions();
         this.setupEventListeners();
+        
+        // Refresh balance and transactions every 10 seconds
+        setInterval(async () => {
+            await this.loadUserCredits();
+            await this.generateSampleTransactions();
+            this.displayTransactions();
+        }, 10000);
     }
 
-    // Load user credits from localStorage
-    loadUserCredits() {
-        this.userCredits = parseInt(localStorage.getItem('freelancerVCredits') || '0');
-        this.totalEarnings = parseFloat(localStorage.getItem('totalEarnings') || '0');
-        this.pendingCredits = parseInt(localStorage.getItem('pendingCredits') || '0');
-        
-        const storedTransactions = localStorage.getItem('freelancerTransactions');
-        if (storedTransactions) {
-            this.transactions = JSON.parse(storedTransactions);
+    // Load user credits from API
+    async loadUserCredits() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) return;
+
+        try {
+            // Fetch real balance from API
+            const response = await fetch(`/api/credits/balance/${userInfo.id}`);
+            const data = await response.json();
+
+            if (data.success) {
+                this.userCredits = data.balance || 0;
+                this.totalEarnings = (data.totalEarned || 0) * 10; // Convert to INR
+                this.pendingCredits = data.pendingPayments || 0;
+                this.updateDashboard();
+            }
+        } catch (err) {
+            console.error('Error loading credits:', err);
+            // Fallback to localStorage
+            this.userCredits = parseInt(localStorage.getItem('freelancerVCredits') || '0');
+            this.totalEarnings = parseFloat(localStorage.getItem('totalEarnings') || '0');
+            this.pendingCredits = parseInt(localStorage.getItem('pendingCredits') || '0');
         }
     }
 
@@ -51,14 +71,30 @@ class CreditsManager {
         }
     }
 
-    // Initialize empty transactions for new users
-    generateSampleTransactions() {
-        // Keep transactions empty for new users
-        // Transactions will be added when users actually receive credits or make withdrawals
-        if (this.transactions.length === 0) {
-            // Initialize with empty array - no sample data
+    // Load transactions from API
+    async generateSampleTransactions() {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) return;
+
+        try {
+            // Fetch ALL transactions (no type filter to get both earned and withdrawals)
+            const response = await fetch(`/api/credits/transactions/${userInfo.id}`);
+            const data = await response.json();
+
+            if (data.success && data.transactions) {
+                // Map API transactions to display format
+                this.transactions = data.transactions.map(txn => ({
+                    id: txn.id,
+                    type: txn.type === 'withdrawal' ? 'withdrawn' : 'received',
+                    amount: txn.credits,
+                    description: txn.description || txn.type,
+                    date: txn.created_at,
+                    status: txn.status || 'completed'
+                }));
+            }
+        } catch (err) {
+            console.error('Error loading transactions:', err);
             this.transactions = [];
-            localStorage.setItem('freelancerTransactions', JSON.stringify(this.transactions));
         }
     }
 
@@ -369,37 +405,46 @@ class CreditsManager {
     }
 
     // Process withdrawal
-    processWithdrawal(credits, method) {
-        const grossAmount = credits * this.EXCHANGE_RATE;
-        const processingFee = Math.round(grossAmount * this.PROCESSING_FEE_RATE);
-        const netAmount = grossAmount - processingFee;
-        
-        const transaction = {
-            id: 'txn_' + Date.now(),
-            type: 'withdrawn',
-            amount: credits,
-            description: `Withdrawal via ${method.toUpperCase()}`,
-            date: new Date().toISOString(),
-            status: 'pending',
-            netAmount: netAmount
-        };
-        
-        this.userCredits -= credits;
-        this.pendingCredits += credits;
-        this.transactions.unshift(transaction);
-        
-        localStorage.setItem('freelancerVCredits', this.userCredits.toString());
-        localStorage.setItem('pendingCredits', this.pendingCredits.toString());
-        localStorage.setItem('freelancerTransactions', JSON.stringify(this.transactions));
-        
-        this.updateDashboard();
-        this.displayTransactions();
-        this.showSuccessModal(credits, netAmount);
-        this.resetWithdrawalForm();
-        
-        // Create notification for withdrawal request
-        if (window.notificationsManager) {
-            window.notificationsManager.notifyWithdrawal(netAmount, 'pending');
+    async processWithdrawal(credits, method) {
+        const userInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (!userInfo) {
+            alert('User not logged in');
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/credits/withdraw', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userInfo.id,
+                    amount: parseInt(credits)
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                // Calculate amounts for display
+                const grossAmount = credits * 10;
+                const processingFee = Math.round(grossAmount * 0.02);
+                const netAmount = grossAmount - processingFee;
+                
+                // Reload balance from API
+                await this.loadUserCredits();
+                this.updateDashboard();
+                
+                // Show completed modal (not pending)
+                this.showSuccessModalCompleted(credits, netAmount);
+                this.resetWithdrawalForm();
+                
+                this.showSuccessNotification(`✅ Withdrawal Completed! ${credits} VCreds (₹${netAmount.toLocaleString()}) processed successfully.`);
+            } else {
+                alert('❌ Withdrawal failed: ' + data.message);
+            }
+        } catch (err) {
+            console.error('Error processing withdrawal:', err);
+            alert('❌ Failed to process withdrawal. Please try again.');
         }
     }
 
@@ -441,20 +486,34 @@ class CreditsManager {
         }, 4000);
     }
 
-    // Show success modal
-    showSuccessModal(credits, amount) {
+    // Show success modal for completed withdrawal
+    showSuccessModalCompleted(credits, amount) {
         const successCreditsEl = document.getElementById('successCredits');
         const successAmountEl = document.getElementById('successAmount');
         const successModal = document.getElementById('successModal');
         
         if (successCreditsEl) successCreditsEl.textContent = credits;
         if (successAmountEl) successAmountEl.textContent = '₹' + amount.toLocaleString();
+        
+        // Update modal title and message to show "Completed" instead of "Requested"
+        const modalTitle = successModal?.querySelector('h2');
+        if (modalTitle) modalTitle.textContent = 'Withdrawal Successful!';
+        
+        const modalMessage = successModal?.querySelector('p');
+        if (modalMessage) modalMessage.textContent = 'Your withdrawal has been completed successfully';
+        
+        // Hide processing time message
+        const processingTime = successModal?.querySelector('[style*="Processing Time"]');
+        if (processingTime) processingTime.style.display = 'none';
+        
         if (successModal) {
             successModal.style.display = 'flex';
-            
-            // Also show success notification
-            this.showSuccessNotification(`Withdrawal request for ${credits} VCredits submitted successfully!`);
         }
+    }
+    
+    // Show success modal (legacy - kept for compatibility)
+    showSuccessModal(credits, amount) {
+        this.showSuccessModalCompleted(credits, amount);
     }
 
     // Close success modal

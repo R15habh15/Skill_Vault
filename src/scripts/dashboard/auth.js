@@ -7,6 +7,41 @@ class AuthManager {
 
     init() {
         this.loadUserData();
+        this.setupCrossTabDetection();
+    }
+    
+    // Detect when another tab logs in with a different user
+    setupCrossTabDetection() {
+        // Store the current user ID
+        const currentUserInfo = JSON.parse(localStorage.getItem('userInfo'));
+        if (currentUserInfo) {
+            sessionStorage.setItem('currentUserId', currentUserInfo.id);
+        }
+        
+        // Listen for storage changes from other tabs
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'userInfo' && e.newValue) {
+                const newUserInfo = JSON.parse(e.newValue);
+                const currentUserId = sessionStorage.getItem('currentUserId');
+                
+                // If a different user logged in another tab, show warning
+                if (newUserInfo && currentUserId && newUserInfo.id != currentUserId) {
+                    alert('⚠️ Another user has logged in on a different tab. This page will reload to prevent data conflicts.');
+                    location.reload();
+                }
+            }
+        });
+        
+        // Also check on focus (when user switches back to this tab)
+        window.addEventListener('focus', () => {
+            const currentUserInfo = JSON.parse(localStorage.getItem('userInfo'));
+            const sessionUserId = sessionStorage.getItem('currentUserId');
+            
+            if (currentUserInfo && sessionUserId && currentUserInfo.id != sessionUserId) {
+                alert('⚠️ User session changed. Reloading page...');
+                location.reload();
+            }
+        });
     }
 
     // Load user data from localStorage and update the dashboard

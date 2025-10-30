@@ -34,7 +34,6 @@
                 <button type="submit" class="login-btn">Sign In</button>
                 <div class="login-footer">
                     <p>Don't have an account? <a href="/src/pages/register.html">Join now</a></p>
-                    <p><a href="#" onclick="showForgotPassword()">Forgot Password?</a></p>
                 </div>
             </form>
         </div>
@@ -92,9 +91,7 @@
                 submitBtn.disabled = false;
             }
         });
-        function showForgotPassword() {
-            showNotification('Password reset functionality will be implemented soon!', 'info');
-        }
+        
         function showNotification(message, type = 'info') {
             const existingNotifications = document.querySelectorAll('.notification');
             existingNotifications.forEach(notification => notification.remove());

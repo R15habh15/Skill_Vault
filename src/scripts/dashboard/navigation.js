@@ -97,8 +97,16 @@ class NavigationManager {
                 }
                 break;
             case 'past-projects':
+                if (window.workSubmissionManager) {
+                    window.workSubmissionManager.loadPastProjects('past-projects-container');
+                }
                 if (window.pastProjectsManager) {
                     window.pastProjectsManager.refreshProjects();
+                }
+                break;
+            case 'completed-projects':
+                if (window.workSubmissionManager) {
+                    window.workSubmissionManager.loadPastProjects('completed-projects-container');
                 }
                 break;
             case 'credits':

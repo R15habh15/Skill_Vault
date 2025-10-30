@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS user_settings (
 CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(50) NOT NULL CHECK (type IN ('job_match', 'payment', 'project_update', 'message', 'system', 'withdrawal', 'application_status')),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('job_match', 'payment', 'project_update', 'message', 'system', 'withdrawal', 'application_status', 'work_submitted', 'work_revision', 'work_approved', 'payment_received', 'withdrawal_requested')),
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
     data JSONB DEFAULT '{}', -- Additional data for the notification
@@ -70,7 +70,7 @@ CREATE TABLE credit_orders (
 CREATE TABLE credit_transactions (
     id SERIAL PRIMARY KEY,
     user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('purchase', 'received', 'sent', 'withdrawal', 'refund')),
+    type VARCHAR(20) NOT NULL CHECK (type IN ('purchase', 'received', 'sent', 'withdrawal', 'refund', 'earned', 'project_payment', 'escrow_hold')),
     amount DECIMAL(10,2), -- INR amount (for purchases/withdrawals)
     credits INTEGER NOT NULL,
     description TEXT,

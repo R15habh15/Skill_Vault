@@ -510,7 +510,16 @@
                 username: document.getElementById('company-name').value,
                 email: email,
                 password: document.getElementById('company-password').value,
-                userType: 'company'
+                userType: 'company',
+                companyProfile: {
+                    companyName: document.getElementById('company-name').value,
+                    registrationNumber: document.getElementById('company-registration').value,
+                    businessEmail: email,
+                    businessPhone: document.getElementById('company-phone').value,
+                    businessAddress: document.getElementById('company-address').value,
+                    representativeName: document.getElementById('representative-name').value,
+                    representativePosition: document.getElementById('representative-position').value
+                }
             };
 
             try {
