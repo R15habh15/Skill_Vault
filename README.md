@@ -7,10 +7,6 @@
 
 A comprehensive freelance marketplace platform with integrated credit system (VCreds), premium subscriptions, job management, real-time chat, and secure Razorpay payment integration.
 
-## 📸 Screenshots
-
-> Add screenshots of your application here
-
 ## 🌟 Star this repo if you find it useful!
 
 ## ✨ Key Features
@@ -365,6 +361,9 @@ npm test               # Run tests (if configured)
 - **Modern CSS** - CSS Variables, Grid, Flexbox
 - **Font Awesome** - Icons
 - **Socket.io Client** - Real-time chat
+
+## Contributers
+- **Rishabh Tripathi**
 
 ## 📝 License
 
