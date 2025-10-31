@@ -364,6 +364,7 @@ npm test               # Run tests (if configured)
 
 ## Contributers
 - **Rishabh Tripathi**
+- **Abhishekh Yadav**
 
 ## 📝 License
 
